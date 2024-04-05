@@ -4,21 +4,97 @@ import os
 import face_recognition
 from datetime import datetime, date
 
+import requests
+import numpy as np
+
+import cloudinary
+
+
+
+from cloudinary.api import resources_by_folder
+
+
+
+
+
+
+
 app = Flask(__name__)
 
-def load_student_images(path):
+
+cloudinary.config(
+    cloud_name="dimnbv1qj",
+    api_key="685589194883471",
+    api_secret="Zn7snqhOiBaL5u52XL0dUtQOzhs",
+    secure=True,
+)
+
+import cloudinary.api
+
+import cloudinary.uploader
+
+# def load_student_images(path):
+#     images = []
+#     class_names = []
+#     for cl in os.listdir(path):
+#         if cl.endswith(('.jpg', '.png', '.jpeg')):
+#             img_path = os.path.join(path, cl)
+#             img = cv2.imread(img_path)
+#             if img is not None:
+#                 images.append(img)
+#                 class_names.append(os.path.splitext(cl)[0])
+#             else:
+#                 print(f"Error loading image: {img_path}")
+#     return images, class_names
+
+
+# def load_student_images(url):
+#     images = []
+#     class_names = []
+
+#     # Assuming the URL returns a list of image URLs
+#     response = requests.get(url)
+#     image_urls = response.json()  # Assuming the response is JSON
+
+#     for image_url in image_urls:
+#         response = requests.get(image_url)
+#         image_array = np.frombuffer(response.content, np.uint8)
+#         img = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+#         if img is not None:
+#             images.append(img)
+#             # Assuming you can extract class names from the image URL or response
+#             class_names.append(os.path.splitext(os.path.basename(image_url))[0])
+#         else:
+#             print(f"Error loading image: {image_url}")
+
+#     return images, class_names
+
+
+
+
+def load_student_images():
     images = []
     class_names = []
-    for cl in os.listdir(path):
-        if cl.endswith(('.jpg', '.png', '.jpeg')):
-            img_path = os.path.join(path, cl)
-            img = cv2.imread(img_path)
-            if img is not None:
-                images.append(img)
-                class_names.append(os.path.splitext(cl)[0])
-            else:
-                print(f"Error loading image: {img_path}")
+
+    # Assuming 'student_images' is the folder containing the images
+    folder = 'https://console.cloudinary.com/pm/c-3da0935b394f75dec3b41cdb1d69cc/media-explorer/student_images'
+
+    # Search for resources (images) in the specified folder
+    result = cloudinary.api.search.expression(f'folder:{folder}').execute()
+
+    for resource in result['resources']:
+        # Extract the image URL from the resource
+        image_url = resource['secure_url']
+        images.append(image_url)
+
+        # Extract the class name (filename without extension)
+        class_name = os.path.splitext(os.path.basename(resource['public_id']))[0]
+        class_names.append(class_name)
+
     return images, class_names
+
+
+
 
 def find_encodings(images):
     encode_list = []
@@ -59,7 +135,8 @@ def index():
 
 @app.route('/recognition_complete')
 def recognition_complete():
-    return render_template('next_page.html')  # Assuming you have this template
+    # to access the next_page.html
+    return render_template('next_page.html')  
 
 recognition_status = "processing"  # could be 'processing', 'recognized', or 'unrecognized'
 
@@ -72,18 +149,14 @@ def get_recognition_status():
 
 @app.route('/submit_page')
 def submit_page():
-    # Ensure this template exists in your 'templates' directory
+    # to access the submit_page.html
     return render_template('submit_page.html')
 
 
 
-
-
-
-
-
 def gen_frames():
-    path = '../../faceId/student_images'  # Adjusted for demonstration, ensure this is correct for your environment
+    #path = '../../faceId/student_images'  # Adjusted for demonstration, ensure this is correct for your environment
+    path = 'https://console.cloudinary.com/pm/c-3da0935b394f75dec3b41cdb1d69cc/media-explorer/student_images'
     images, class_names = load_student_images(path)
     encoded_face_train = find_encodings(images)
 
@@ -104,7 +177,7 @@ def gen_frames():
                 print("Failed to grab frame")
                 break
             
-            # To improve performance, consider processing every nth frame
+            # Every images will be process to scan each faces
             img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
             img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
 
