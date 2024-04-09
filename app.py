@@ -8,6 +8,9 @@ import numpy as np
 import cloudinary
 import cloudinary.api
 import cloudinary.uploader
+import time
+import io
+
 
 app = Flask(__name__)
 
@@ -48,22 +51,25 @@ def find_encodings(images):
             print("Face not found in the image.")
     return encode_list
 
-def mark_attendance(name, attendance_file_path, marked_names, class_names):
+
+def mark_attendance(name, class_names):
     global recognition_status
-    if name in class_names and name not in marked_names:
-        now = datetime.now()
-        # Adding date in the format YYYY-MM-DD and time in 12-hour format with AM/PM
-        dtString = now.strftime('%Y-%m-%d %I:%M:%S %p')
-        with open(attendance_file_path, 'a') as f:
-            # Writing the date and time in the specified format
-            f.writelines(f'\n{name},{dtString}')
-        recognition_status = "recognized"
-        marked_names.add(name)
-        print(f"Marked attendance for {name}")
+    dtString = datetime.now().strftime('%Y-%m-%d %I:%M:%S %p')
+    attendance_record = f"{name},{dtString}\n"
+    
+    if name in class_names or name == "Unknown User":
+        recognition_status = "recognized" if name in class_names else "unrecognized"
+        # Convert the attendance record to a bytes-like object
+        attendance_data = io.StringIO(attendance_record)
+        file_name = f"attendance_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt"
+        
+        # Upload the record to Cloudinary
+        response = cloudinary.uploader.upload(attendance_data, resource_type='raw',
+                                              public_id=f"attendance_files/{file_name}")
+        
+        print(f"Uploaded attendance for {name} to Cloudinary")
         return True
-    elif name not in class_names:
-        recognition_status = "unrecognized"
-    return False
+
 
 def create_or_open_attendance_file(attendance_file_path):
     if not os.path.isfile(attendance_file_path):
@@ -93,7 +99,6 @@ def submit_page():
     # to access the submit_page.html
     return render_template('submit_page.html')
 
-
 def gen_frames():
     images, class_names = load_student_images()
     encoded_face_train = find_encodings(images)
@@ -101,48 +106,53 @@ def gen_frames():
     attendance_file_path = 'Attendance_' + currentDate + '.csv'
     create_or_open_attendance_file(attendance_file_path)
     cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise IOError("Cannot open webcam")
     marked_names = set()
+
     try:
         while True:
-            success, img = cap.read()
-            if not success:
-                print("Failed to grab frame")
-                break
-            
-            # Convert the frame to RGB for face recognition
-            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-            # Find face locations and encodings in the frame
-            faces_in_frame = face_recognition.face_locations(img_rgb)
-            encodings_in_frame = face_recognition.face_encodings(img_rgb, faces_in_frame)
+            recognized_names = []  # Reset recognized names list for each scanning period
+            start_scan_time = time.time()  # Reset the scan timer for each user
 
-            for face_loc, encoding in zip(faces_in_frame, encodings_in_frame):
-                matches = face_recognition.compare_faces(encoded_face_train, encoding, tolerance=0.5)
-                name = "Scanning..."
+            while time.time() - start_scan_time < 5:  # Continuous scanning for 5 seconds
+                success, img = cap.read()
+                if not success:
+                    break
 
-                if True in matches:
-                    matched_index = matches.index(True)
-                    name = class_names[matched_index]
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                faces_in_frame = face_recognition.face_locations(img_rgb)
+                encodings_in_frame = face_recognition.face_encodings(img_rgb, faces_in_frame)
+
+                for face_loc, encoding in zip(faces_in_frame, encodings_in_frame):
+                    matches = face_recognition.compare_faces(encoded_face_train, encoding, tolerance=0.5)
+                    if True in matches:
+                        matched_index = matches.index(True)
+                        recognized_names.append(class_names[matched_index])
+                    else:
+                        recognized_names.append("Unknown")  # Append "Unknown" for unmatched faces
+
+                # Frame processing and encoding for display
+                ret, buffer = cv2.imencode('.jpg', img)
+                frame = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+            # Decision making after 5 seconds of scanning
+            if recognized_names:
+                most_common_name = max(set(recognized_names), key=recognized_names.count)
+                if most_common_name != "Unknown":
+                    mark_attendance(most_common_name, class_names)
                 else:
-                    name = "Unknown"
-                if mark_attendance(name, attendance_file_path, marked_names, class_names):
-                    yield "REDIRECT"
-                    return  # Stops the generator after successful recognition
+                    mark_attendance("Unknown User", class_names)
 
-                y1, x2, y2, x1 = face_loc
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img, name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-            # Encode the frame and yield for displaying
-            ret, buffer = cv2.imencode('.jpg', img)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                # Signal that recognition is complete
+                yield (b'--RECOGNITION_COMPLETE--')
+                cap.release()
+                return  # Stop the generator after making a decision
     finally:
         cap.release()
 
+
+        
 
 @app.route('/video_feed')
 def video_feed():

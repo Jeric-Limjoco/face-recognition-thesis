@@ -253,35 +253,36 @@
     
   
 
-
   <script>
     function openCameraAndCheckRecognition() {
-    // Open video feed in an element, for example, an <iframe> or directly in a <div>
-    // This is simplified; actual implementation may involve AJAX or WebSocket for live feed
-    var videoFeedWindow = window.open('/video_feed', 'Video Feed', 'width=800,height=600');
+        // Open video feed in a new window
+        var videoFeedWindow = window.open('/video_feed', 'Video Feed', 'width=800,height=600');
+    
+        // Simulated function to check for recognition flag
+        // In a real scenario, you might use AJAX or WebSocket to check server-side flags
+        
+        function checkRecognitionStatus() {
+          fetch('/recognition_status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'recognized') {
+                    videoFeedWindow.close();  // Close the video feed window
+                    window.location.href = '/submit_page';  // Redirect to another page
+                } else if (data.status === 'unrecognized') {
+                    alert('Face not recognized. Please try again.');
+                    videoFeedWindow.close();  // Close the video feed window
+                } else {
+                    setTimeout(checkRecognitionStatus, 1000); // Continue polling
+                }
+            })
+            .catch(error => console.error('Error checking recognition status:', error));
+        }
 
-    // Simulated function to check for recognition flag
-    // In a real scenario, you might use AJAX or WebSocket to check server-side flags
-    function checkRecognitionStatus() {
-      fetch('/recognition_status') // Keep this unchanged if it's checking the recognition status
-          .then(response => response.json())
-          .then(data => {
-              if (data.status === 'recognized') { // Assuming 'recognized' is the success status
-                  window.location.href = '/submit_page'; // Redirect to submit_page.html
-              } else if (data.status === 'unrecognized') {
-                  alert('Face not recognized. Please try again.');
-              } else {
-                  setTimeout(checkRecognitionStatus, 1000); // Continue polling
-              }
-          })
-          .catch(error => console.error('Error checking recognition status:', error));
-      }
+        // Start checking the recognition status after a delay
+        setTimeout(checkRecognitionStatus, 1000);
+    }
+</script>
 
-
-    // Start checking the recognition status after a delay
-    setTimeout(checkRecognitionStatus, 1000);
-}
-    </script>
 </head>
 <body>
     
@@ -308,13 +309,13 @@
     
         <div>
             
-          <button class="btn btn-primary btn-lg" onclick="openCameraAndCheckRecognition()">Submit Button</button>
+          <button class="btn btn-primary btn-lg" onclick="openCameraAndCheckRecognition()">Submit</button>
         </div>
     
     <br>
     
     <div class="container">
-        Across a wide range of businesses, face recognition technology has become a very effective and adaptable instrument in the current day. This technology has significant advantages over traditional ways of monitoring students, making it an invaluable resource for educators and administrators. As we all know, during online quizzes and exams, there is no guarantee that the students are the ones answering the questions. To reduce this or prevent this, the researchers propose an application that will verify the student’s presence while taking an online academic activity, with the help of a face recognition algorithm, the researchers will be able to ensure that only the recognized students are the ones answering the activities thus preventing academic misconduct from being committed.
+      Alternative for Access Codes and Credential Logins
     </div>
     
     <br>
