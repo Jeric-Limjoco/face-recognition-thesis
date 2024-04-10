@@ -61,7 +61,7 @@ def mark_attendance(name, class_names):
         recognition_status = "recognized" if name in class_names else "unrecognized"
         # Convert the attendance record to a bytes-like object
         attendance_data = io.StringIO(attendance_record)
-        file_name = f"attendance_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt"
+        file_name = f"{name}_attendance_data_and_time_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt"
         
         # Upload the record to Cloudinary
         response = cloudinary.uploader.upload(attendance_data, resource_type='raw',
